@@ -4,8 +4,8 @@ build:
 test:
     cargo test
 
-run:
-    cargo run
+run ARGS='':
+    cargo run --example simple {{ ARGS }}
 
 fmt:
     cargo fmt
