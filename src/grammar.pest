@@ -23,7 +23,7 @@ specific_day_and_time = { specific_day ~ ^"at" ~ specific_time }
 
 /// Parses expressions that specify both a date and a time, for example, "2025.01.25
 /// at 5:00 AM".
-specific_date_and_time = { specific_date ~ ^"at" ~ specific_time }
+specific_date_and_time = { specific_date ~ (^"at")? ~ specific_time }
 
 /// Parses specific days of the week, with case-insensitive options.
 specific_day = { monday | tuesday | wednesday | thursday | friday | saturday | sunday }
@@ -36,7 +36,7 @@ specific_date = { year ~ date_sep ~ (month | month_name | month_short_name) ~ da
 
 /// Parses a specific time expression, including hour, minute, and AM/PM
 /// notation.
-specific_time = { hour ~ ":" ~ minute ~ am_pm | hour ~ am_pm }
+specific_time = { hour ~ ":" ~ minute ~ (":" ~ second)? ~ am_pm? | hour ~ am_pm? }
 
 /// Parses future time expressions, such as "in 3 days" or "in 2 weeks".
 future_time = { ^"in" ~ number ~ time_unit }
@@ -65,6 +65,9 @@ hour = @{ ASCII_DIGIT+ }
 
 /// Parses a valid minute value as a sequence of digits.
 minute = @{ ASCII_DIGIT+ }
+
+/// Parses a valid second value as a sequence of digits.
+second = @{ ASCII_DIGIT+ }
 
 /// Parses AM/PM markers, with case-insensitive options.
 am_pm = { am | pm }

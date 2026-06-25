@@ -12,6 +12,8 @@ fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
+    println!("Parsing '{}'", args[1]);
+
     match date_parser::from_string(args[1].as_str()) {
         Ok(parsed) => println!("{:#?}", parsed),
         Err(e) => eprintln!("Error: {}", e),

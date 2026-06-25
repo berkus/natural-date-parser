@@ -344,7 +344,8 @@ fn process_specific_time(
 ) -> Result<DateTime<Local>, ParseDateError> {
     let mut hour: u32 = 0;
     let mut minute: u32 = 0;
-    let mut is_pm = false;
+    let mut second: u32 = 0;
+    let mut is_pm: Option<bool> = None;
 
     // Iterate through inner pairs to capture hour, minute, and am_pm
     for inner_pair in pair.into_inner() {
@@ -371,10 +372,16 @@ fn process_specific_time(
                     ))
                 })?;
             }
+            Rule::second => {
+                second = inner_pair.as_str().parse::<u32>().map_err(|e| {
+                    ParseDateError::ParseError(format!(
+                        "Failed to parse second '{}': {e}",
+                        inner_pair.as_str()
+                    ))
+                })?;
+            }
             Rule::am_pm => {
-                if let Some(res) = process_is_pm(inner_pair) {
-                    is_pm = res;
-                }
+                is_pm = process_is_pm(inner_pair);
             }
             _ => {
                 return Err(ParseDateError::ParseError(
@@ -384,13 +391,22 @@ fn process_specific_time(
         }
     }
 
-    if is_pm && hour < 12 {
+    // if am/pm is specified, time must be in 12-hour format
+    if is_pm.is_some() && hour > 12 {
+        return Err(ParseDateError::ParseError(format!(
+            "AM/PM time hour {hour} is invalid, must be 12-hour format"
+        )));
+    }
+
+    // if am/pm is not specified, do not modify hour at all
+    // otherwise, convert to 24-hour format
+    if is_pm == Some(true) && hour < 12 {
         hour += 12;
-    } else if !is_pm && hour == 12 {
+    } else if is_pm == Some(false) && hour == 12 {
         hour = 0;
     }
 
-    let modified_datetime = change_time(datetime, hour, minute)?;
+    let modified_datetime = change_time(datetime, hour, minute, second)?;
 
     Ok(modified_datetime)
 }
@@ -515,6 +531,7 @@ fn change_time(
     datetime: DateTime<Local>,
     hour: u32,
     minute: u32,
+    second: u32,
 ) -> Result<DateTime<Local>, ParseDateError> {
     match Local.with_ymd_and_hms(
         datetime.year(),
@@ -522,7 +539,7 @@ fn change_time(
         datetime.day(),
         hour,
         minute,
-        0,
+        second,
     ) {
         chrono::LocalResult::Single(new_datetime) => Ok(new_datetime),
         chrono::LocalResult::None => Err(ParseDateError::ParseError(
@@ -1286,6 +1303,30 @@ mod tests {
         }
 
         #[test]
+        fn test_process_specific_time_no_ampm_12_assumes_24_hour_clock() {
+            let datetime = get_test_datetime();
+            let pair = parse_input("12:00").unwrap();
+            let result = crate::process_specific_time(pair, datetime);
+
+            assert!(result.is_ok());
+            let modified_datetime = result.unwrap();
+            assert_eq!(modified_datetime.hour(), 12);
+            assert_eq!(modified_datetime.minute(), 0);
+        }
+
+        #[test]
+        fn test_process_specific_time_no_ampm_23_assumes_24_hour_clock() {
+            let datetime = get_test_datetime();
+            let pair = parse_input("23:00").unwrap();
+            let result = crate::process_specific_time(pair, datetime);
+
+            assert!(result.is_ok());
+            let modified_datetime = result.unwrap();
+            assert_eq!(modified_datetime.hour(), 23);
+            assert_eq!(modified_datetime.minute(), 0);
+        }
+
+        #[test]
         fn test_process_specific_time_noon() {
             let datetime = get_test_datetime();
             let pair = parse_input("12:00PM").unwrap();
@@ -1591,7 +1632,7 @@ mod tests {
     fn test_change_time_valid() {
         let now = Local::now();
 
-        let new_time = crate::change_time(now, 16, 45);
+        let new_time = crate::change_time(now, 16, 45, 0);
         assert!(new_time.is_ok());
 
         let new_datetime = new_time.unwrap();
@@ -1603,7 +1644,7 @@ mod tests {
     fn test_change_time_invalid_hour() {
         let now = Local::now();
 
-        let new_time = crate::change_time(now, 25, 30);
+        let new_time = crate::change_time(now, 25, 30, 0);
         assert!(new_time.is_err());
 
         if let Err(ParseDateError::ParseError(msg)) = new_time {
@@ -1617,7 +1658,7 @@ mod tests {
     fn test_change_time_invalid_minute() {
         let now = Local::now();
 
-        let new_time = crate::change_time(now, 14, 60);
+        let new_time = crate::change_time(now, 14, 60, 0);
         assert!(new_time.is_err());
 
         if let Err(ParseDateError::ParseError(msg)) = new_time {
